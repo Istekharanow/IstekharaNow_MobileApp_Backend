@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "282530694238",
+    "project_id": "istekharanow-6cacb",
+    "storage_bucket": "istekharanow-6cacb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:282530694238:android:d0c3a2637c4a5c74d7e0cf",
+        "android_client_info": {
+          "package_name": "com.istekharanow.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "282530694238-rjaq886u02ugkmg5a5i574blgoonsqdq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlicywyN1VZMaZ9BfRI1kgYPG5epMYFXQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "282530694238-rjaq886u02ugkmg5a5i574blgoonsqdq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "282530694238-lu35q32ee7o230ns5dd64etiv6obd6r1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.istekharanow.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:282530694238:android:35e171bba3624809d7e0cf",
+        "android_client_info": {
+          "package_name": "com.istekharanow.app.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "282530694238-rjaq886u02ugkmg5a5i574blgoonsqdq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlicywyN1VZMaZ9BfRI1kgYPG5epMYFXQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "282530694238-rjaq886u02ugkmg5a5i574blgoonsqdq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "282530694238-lu35q32ee7o230ns5dd64etiv6obd6r1.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.istekharanow.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
