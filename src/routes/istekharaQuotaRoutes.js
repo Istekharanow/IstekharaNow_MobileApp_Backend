@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
 const istekharaQuotaController = require('../controllers/istekharaQuotaController');
-const iapController = require('../controllers/IAPcontroller');
+const iapController = require('../controllers/iapController');
 
 // Istekhara Quota routescls
 router.get('/pricing', istekharaQuotaController.getPricingList);
