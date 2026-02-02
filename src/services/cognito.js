@@ -124,7 +124,7 @@ class CognitoService {
 
  
 // Ensure user exists in Cognito
-async ensureUserExists(email, name, provider) {
+async ensureUserExists(email, name) {
   const admin = new AWS.CognitoIdentityServiceProvider({
     region: this.region,
     accessKeyId: process.env.COGNITO_ACCESS_KEY,
@@ -137,14 +137,6 @@ async ensureUserExists(email, name, provider) {
       Username: email
     }).promise();
 
-    // If user was created via PASSWORD, do NOT touch password
-    const signupAttr = user.UserAttributes.find(
-      a => a.Name === 'custom:signup_method'
-    );
-
-    if (signupAttr?.Value === 'password') {
-      return; // DO NOTHING
-    }
 
     //  Only social users get internal password
     await admin.adminSetUserPassword({
