@@ -124,7 +124,7 @@ class CognitoService {
 
  
 // Ensure user exists in Cognito
-async ensureUserExists(email, name) {
+async ensureUserExists(email, name, provider) {
   const admin = new AWS.CognitoIdentityServiceProvider({
     region: this.region,
     accessKeyId: process.env.COGNITO_ACCESS_KEY,
@@ -132,14 +132,21 @@ async ensureUserExists(email, name) {
   });
 
   try {
-    // 🔍 Try to get user
-    await admin.adminGetUser({
+    const user = await admin.adminGetUser({
       UserPoolId: this.poolId,
       Username: email
     }).promise();
 
-    // 🔥 IMPORTANT FIX FOR EXISTING USERS
-    // Force-set the correct internal password
+    // If user was created via PASSWORD, do NOT touch password
+    const signupAttr = user.UserAttributes.find(
+      a => a.Name === 'custom:signup_method'
+    );
+
+    if (signupAttr?.Value === 'password') {
+      return; // DO NOTHING
+    }
+
+    //  Only social users get internal password
     await admin.adminSetUserPassword({
       UserPoolId: this.poolId,
       Username: email,
@@ -150,19 +157,18 @@ async ensureUserExists(email, name) {
   } catch (err) {
     if (err.code !== 'UserNotFoundException') throw err;
 
-    // 🆕 Create new user
+    //  New social user
     await admin.adminCreateUser({
       UserPoolId: this.poolId,
       Username: email,
       UserAttributes: [
         { Name: 'email', Value: email },
         { Name: 'email_verified', Value: 'true' },
-        { Name: 'name', Value: name }
+        { Name: 'name', Value: name },
       ],
       MessageAction: 'SUPPRESS'
     }).promise();
 
-    // 🔐 Set SAME internal password
     await admin.adminSetUserPassword({
       UserPoolId: this.poolId,
       Username: email,
@@ -171,6 +177,7 @@ async ensureUserExists(email, name) {
     }).promise();
   }
 }
+
 
 
 // Admin login to get tokens for social login users

@@ -254,7 +254,7 @@ exports.mobileSocialLogin = async (req, res, next) => {
     console.log('Name:', name);
 
     // Ensure Cognito user exists
-    await cognito.ensureUserExists(email, name);
+    await cognito.ensureUserExists(email, name, provider);
 
     // Cognito login
     const tokens = await cognito.adminLogin(email);
