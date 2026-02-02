@@ -15,6 +15,11 @@ yarn-error.log*
 *service-account*.json
 google-credentials.json
 
+# firebase
+# Firebase service account
+src/serviceAccountKey.json
+
+
 # IDE
 .vscode/
 .idea/
