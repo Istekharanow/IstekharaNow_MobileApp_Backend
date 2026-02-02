@@ -18,11 +18,12 @@
   "dependencies": {
     "amazon-cognito-identity-js": "^6.3.7",
     "aws-sdk": "^2.1498.0",
-    "axios": "^1.13.2",
+    "axios": "^1.13.4",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "firebase-admin": "^13.6.0",
     "google-auth-library": "^10.5.0",
     "googleapis": "^169.0.0",
     "jsonwebtoken": "^9.0.3",
@@ -36,7 +37,7 @@
   "devDependencies": {
     "nodemon": "^3.0.2"
   },
-    "engines": {
+  "engines": {
     "node": "18.x"
   }
 }

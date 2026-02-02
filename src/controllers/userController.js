@@ -6,7 +6,9 @@ const querystring = require('querystring');
 const cognito = new CognitoService('user');
 
 
-const { verifyGoogleToken, verifyFacebookToken, verifyAppleToken } = require('../services/socialProviders');
+// const { verifyGoogleToken, verifyFacebookToken, verifyAppleToken } = require('../services/socialProviders');
+const { verifySocialToken } = require('../services/socialProviders');
+
 
 // List all users (admin only)
 exports.listUsers = async (req, res, next) => {
@@ -243,18 +245,8 @@ exports.mobileSocialLogin = async (req, res, next) => {
     if (!provider || !provider_token) {
       throw new ValidationError('provider and provider_token are required');
     }
-
-    // Verify provider token
-    let profile;
-    if (provider === 'google') {
-      profile = await verifyGoogleToken(provider_token);
-    } else if (provider === 'facebook') {
-      profile = await verifyFacebookToken(provider_token);
-    } else if (provider === 'apple') {
-      profile = await verifyAppleToken(provider_token);
-    } else {
-      throw new ValidationError('Invalid provider');
-    }
+    
+    const profile = await verifySocialToken(provider, provider_token);
 
     const { email, name } = profile;
     console.log('Social profile:', profile);

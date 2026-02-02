@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const jwkToPem = require('jwk-to-pem');
 const axios = require('axios');
 
+const SOCIAL_PASSWORD = process.env.COGNITO_SOCIAL_PASSWORD;
+
 class CognitoService {
   constructor(type) {
     this.region = process.env.AWS_COGNITO_REGION;
@@ -60,7 +62,6 @@ class CognitoService {
         PASSWORD: password
       }
     };
-
     return await this.cognitoIdentityServiceProvider.initiateAuth(params).promise();
   }
 
@@ -131,13 +132,25 @@ async ensureUserExists(email, name) {
   });
 
   try {
+    // 🔍 Try to get user
     await admin.adminGetUser({
       UserPoolId: this.poolId,
       Username: email
     }).promise();
+
+    // 🔥 IMPORTANT FIX FOR EXISTING USERS
+    // Force-set the correct internal password
+    await admin.adminSetUserPassword({
+      UserPoolId: this.poolId,
+      Username: email,
+      Password: SOCIAL_PASSWORD,
+      Permanent: true
+    }).promise();
+
   } catch (err) {
     if (err.code !== 'UserNotFoundException') throw err;
 
+    // 🆕 Create new user
     await admin.adminCreateUser({
       UserPoolId: this.poolId,
       Username: email,
@@ -149,14 +162,16 @@ async ensureUserExists(email, name) {
       MessageAction: 'SUPPRESS'
     }).promise();
 
+    // 🔐 Set SAME internal password
     await admin.adminSetUserPassword({
       UserPoolId: this.poolId,
       Username: email,
-      Password: crypto.randomUUID() + 'Aa!',
+      Password: SOCIAL_PASSWORD,
       Permanent: true
     }).promise();
   }
 }
+
 
 // Admin login to get tokens for social login users
 async adminLogin(username) {
@@ -172,7 +187,7 @@ async adminLogin(username) {
     ClientId: this.clientId,
     AuthParameters: {
       USERNAME: username,
-      PASSWORD: 'SOCIAL_LOGIN'
+      PASSWORD: SOCIAL_PASSWORD
     }
   };
 
