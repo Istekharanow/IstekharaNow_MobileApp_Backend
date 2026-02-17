@@ -1,8 +1,13 @@
 const { google } = require("googleapis");
 const path = require("path");
 
+const serviceAccount = JSON.parse(
+  Buffer.from(process.env.GOOGLE_SERVICE_ACCOUNT, "base64").toString("utf8")
+);
+
 const auth = new google.auth.GoogleAuth({
-  keyFile: path.resolve(process.env.GOOGLE_SERVICE_ACCOUNT_PATH),
+  // keyFile: path.resolve(process.env.GOOGLE_SERVICE_ACCOUNT_PATH),
+  credentials: serviceAccount,
   scopes: ["https://www.googleapis.com/auth/androidpublisher"]
 });
 
