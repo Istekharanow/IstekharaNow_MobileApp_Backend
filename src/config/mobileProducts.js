@@ -45,8 +45,10 @@ module.exports.MOBILE_PRODUCTS = {
   istekhara_yearly_50: ISTEKHARA_YEARLY_50,
   "50_istekhara_yearly": ISTEKHARA_YEARLY_50,
   "50_istekhara_per_year": ISTEKHARA_YEARLY_50,
+  "50_istekhara_per_year_ios": ISTEKHARA_YEARLY_50,
 
   // ── Unlimited 2-Year ──
   istekhara_unlimited_2y: ISTEKHARA_UNLIMITED_2Y,
   unlimited_istekhara_2y: ISTEKHARA_UNLIMITED_2Y,
+  unlimited_istekhara_2y_ios: ISTEKHARA_UNLIMITED_2Y,
 };
