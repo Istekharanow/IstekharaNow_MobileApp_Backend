@@ -195,6 +195,21 @@ async adminLogin(username) {
 }
 
 
+// Admin delete user
+  async adminDeleteUser(username) {
+    const admin = new AWS.CognitoIdentityServiceProvider({
+      region: this.region,
+      accessKeyId: process.env.COGNITO_ACCESS_KEY,
+      secretAccessKey: process.env.COGNITO_ACCESS_SECRET
+    });
+
+    const params = {
+      UserPoolId: this.poolId,
+      Username: username
+    };
+
+    return await admin.adminDeleteUser(params).promise();
+  }
 }
 
 module.exports = CognitoService;

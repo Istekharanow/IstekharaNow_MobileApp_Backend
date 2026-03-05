@@ -290,4 +290,33 @@ exports.mobileSocialLogin = async (req, res, next) => {
 };
 
 
+// Delete user account
+exports.deleteUser = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      throw new ValidationError('Email is required');
+    }
+
+    // Delete user from Cognito
+    try {
+      await cognito.adminDeleteUser(email);
+    } catch (cognitoError) {
+      console.error('Error deleting user from Cognito:', cognitoError);
+      // Proceed to delete from local DB even if Cognito deletion fails
+    }
+
+    // Delete user from Database
+    const user = await User.findOne({ where: { email } });
+    if (user) {
+      await user.destroy();
+    }
+
+    res.json({ message: 'User account deleted successfully.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = exports;
