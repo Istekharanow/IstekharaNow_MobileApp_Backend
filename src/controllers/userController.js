@@ -304,16 +304,29 @@ exports.deleteUser = async (req, res, next) => {
       await cognito.adminDeleteUser(email);
     } catch (cognitoError) {
       console.error('Error deleting user from Cognito:', cognitoError);
-      // Proceed to delete from local DB even if Cognito deletion fails
+      return res.status(500).json({
+        message: 'Error deleting user from Cognito',
+        result: {},
+        status: false,
+        status_code: 500
+      });
     }
 
-    // Delete user from Database
+    // Find user
     const user = await User.findOne({ where: { email } });
+
     if (user) {
+      // delete dependent records first
+      await IstekharaQuota.destroy({
+        where: { user_id: user.id }
+      });
+
+      //then delete user
       await user.destroy();
     }
 
     res.json({ message: 'User account deleted successfully.' });
+
   } catch (error) {
     next(error);
   }
