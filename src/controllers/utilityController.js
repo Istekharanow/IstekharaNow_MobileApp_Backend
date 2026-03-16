@@ -7,6 +7,7 @@ const stripe = require('stripe')(process.env.STRIPE_API_KEY);
 exports.getProfile = async (req, res, next) => {
   try {
     const userType = req.user.user_type;
+    console.log('getting profile');
 
     if (userType === 'user') {
       const user = await User.findByPk(req.user.id);
