@@ -208,7 +208,15 @@ async adminLogin(username) {
       Username: username
     };
 
-    return await admin.adminDeleteUser(params).promise();
+    try {
+      return await admin.adminDeleteUser(params).promise();
+    } catch (error) {
+      if (error.code === 'UserNotFoundException') {
+        console.log(`Cognito user not found: ${username}`);
+        throw error;
+      }
+      throw error;
+    }
   }
 }
 

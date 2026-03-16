@@ -299,21 +299,35 @@ exports.deleteUser = async (req, res, next) => {
       throw new ValidationError('Email is required');
     }
 
+    let cognitoUserFound = true;
     // Delete user from Cognito
     try {
       await cognito.adminDeleteUser(email);
     } catch (cognitoError) {
-      console.error('Error deleting user from Cognito:', cognitoError);
-      return res.status(500).json({
-        message: 'Error deleting user from Cognito',
-        result: {},
-        status: false,
-        status_code: 500
-      });
+      if (cognitoError.code === 'UserNotFoundException') {
+        // console.log(`User ${email} not found in Cognito. Proceeding to delete from database...`);
+        cognitoUserFound = false;
+      } else {
+        console.error('Error deleting user from Cognito:', cognitoError);
+        return res.status(500).json({
+          message: 'Error deleting user from Cognito',
+          result: {},
+          status: false,
+          status_code: 500
+        });
+      }
     }
 
     // Find user
     const user = await User.findOne({ where: { email } });
+
+    if (!user && !cognitoUserFound) {
+      return res.status(404).json({
+        message: 'User does not exist or has already been deleted.',
+        status: false,
+        status_code: 404
+      });
+    }
 
     if (user) {
       // delete dependent records first
