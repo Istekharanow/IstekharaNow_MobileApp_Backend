@@ -295,7 +295,9 @@ exports.deleteUser = async (req, res, next) => {
   try {
     // Read the email from the authenticated user token (req.user.email)
     // Fallback to req.body.email just in case an admin is deleting someone else
-    const email = req.user?.email || req.body?.email;
+    // const email = req.user?.email || req.body?.email;
+    const email = req.user?.email;
+    console.log('Email:', email);
 
     if (!email) {
       throw new ValidationError('Email is required and must be authenticated.');
