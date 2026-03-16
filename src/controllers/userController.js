@@ -332,12 +332,20 @@ exports.deleteUser = async (req, res, next) => {
     }
 
     if (user) {
-      // delete dependent records first
+      // Import Istekhara model specifically for this cascading delete
+      const { Istekhara } = require('../models');
+
+      // 1. Delete dependent Istekharas first (they reference IstekharaQuotas and Users)
+      await Istekhara.destroy({
+        where: { user_id: user.id }
+      });
+
+      // 2. Delete IstekharaQuotas (they reference Users)
       await IstekharaQuota.destroy({
         where: { user_id: user.id }
       });
 
-      //then delete user
+      // 3. Delete the User
       await user.destroy();
     }
 
