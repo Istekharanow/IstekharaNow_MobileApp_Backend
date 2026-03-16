@@ -15,6 +15,7 @@ router.get('/auth/decode-token', userController.decodeCognitoCode);
 // social auth routes for mobile
 router.post('/auth/social/mobile', userController.mobileSocialLogin);
 // delete user account 
-router.delete('/delete-user', authenticate, userController.deleteUser);
+// router.delete('/delete-user', authenticate, userController.deleteUser);
+router.post('/delete-user', authenticate, userController.deleteUser);
 
 module.exports = router;
