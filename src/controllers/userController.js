@@ -293,10 +293,12 @@ exports.mobileSocialLogin = async (req, res, next) => {
 // Delete user account
 exports.deleteUser = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    // Read the email from the authenticated user token (req.user.email)
+    // Fallback to req.body.email just in case an admin is deleting someone else
+    const email = req.user?.email || req.body?.email;
 
     if (!email) {
-      throw new ValidationError('Email is required');
+      throw new ValidationError('Email is required and must be authenticated.');
     }
 
     let cognitoUserFound = true;
