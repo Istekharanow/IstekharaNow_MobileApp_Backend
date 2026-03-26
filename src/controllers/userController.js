@@ -23,7 +23,8 @@ exports.listUsers = async (req, res, next) => {
 // Register new user
 exports.register = async (req, res, next) => {
   try {
-    const { email, password, name } = req.body;
+    let { email, password, name } = req.body;
+    email = email.toLowerCase().trim();
 
     // Check if user already exists
     const existingUser = await User.findOne({ where: { email } });
@@ -71,7 +72,8 @@ exports.register = async (req, res, next) => {
 // User login
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
+    email = email.toLowerCase().trim();
 
     // Authenticate with Cognito
     let loggedInUser;
@@ -204,13 +206,16 @@ exports.decodeCognitoCode = async (req, res, next) => {
     // Validate token and get user info
     const verifiedClaims = await cognito.validateToken(id_token);
 
+    // Normalize email to prevent case-sensitivity duplicates
+    const normalizedEmail = verifiedClaims.email.toLowerCase().trim();
+
     // Check if user exists, create if not
-    let user = await User.findOne({ where: { email: verifiedClaims.email } });
+    let user = await User.findOne({ where: { email: normalizedEmail } });
     
     if (!user) {
       user = await User.create({
-        email: verifiedClaims.email,
-        name: verifiedClaims.name || verifiedClaims.email
+        email: normalizedEmail,
+        name: verifiedClaims.name || normalizedEmail
       });
 
       // Create free first request quota
@@ -248,9 +253,11 @@ exports.mobileSocialLogin = async (req, res, next) => {
     
     const profile = await verifySocialToken(provider, provider_token);
 
-    const { email, name } = profile;
+    // Normalize email to prevent case-sensitivity duplicates
+    const email = profile.email.toLowerCase().trim();
+    const name = profile.name;
     console.log('Social profile:', profile);
-    console.log('Email:', email);
+    console.log('Normalized Email:', email);
     console.log('Name:', name);
 
     // Ensure Cognito user exists

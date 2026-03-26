@@ -75,7 +75,8 @@ const authenticate = async (req, res, next) => {
       );
       userType = 'user';
       
-      const user = await User.findOne({ where: { email: verified.email } });
+      const normalizedEmail = verified.email.toLowerCase().trim();
+      const user = await User.findOne({ where: { email: normalizedEmail } });
       if (user) {
         req.user = {
           id: user.id,

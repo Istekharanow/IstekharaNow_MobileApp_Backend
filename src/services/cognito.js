@@ -125,6 +125,9 @@ class CognitoService {
  
 // Ensure user exists in Cognito
 async ensureUserExists(email, name) {
+  // Normalize email to prevent case-sensitivity issues
+  const normalizedEmail = email.toLowerCase().trim();
+
   const admin = new AWS.CognitoIdentityServiceProvider({
     region: this.region,
     accessKeyId: process.env.COGNITO_ACCESS_KEY,
@@ -134,27 +137,24 @@ async ensureUserExists(email, name) {
   try {
     const user = await admin.adminGetUser({
       UserPoolId: this.poolId,
-      Username: email
+      Username: normalizedEmail
     }).promise();
 
-
-    //  Only social users get internal password
-    await admin.adminSetUserPassword({
-      UserPoolId: this.poolId,
-      Username: email,
-      Password: SOCIAL_PASSWORD,
-      Permanent: true
-    }).promise();
+    // User already exists in Cognito — do NOT overwrite their password.
+    // If they registered with email/password, overwriting would lock them out.
+    // The adminLogin flow below uses SOCIAL_PASSWORD only for users
+    // created by this method (social-only users).
+    console.log(`Cognito user already exists for ${normalizedEmail}, skipping password reset.`);
 
   } catch (err) {
     if (err.code !== 'UserNotFoundException') throw err;
 
-    //  New social user
+    //  New social user — create and set social password
     await admin.adminCreateUser({
       UserPoolId: this.poolId,
-      Username: email,
+      Username: normalizedEmail,
       UserAttributes: [
-        { Name: 'email', Value: email },
+        { Name: 'email', Value: normalizedEmail },
         { Name: 'email_verified', Value: 'true' },
         { Name: 'name', Value: name },
       ],
@@ -163,7 +163,7 @@ async ensureUserExists(email, name) {
 
     await admin.adminSetUserPassword({
       UserPoolId: this.poolId,
-      Username: email,
+      Username: normalizedEmail,
       Password: SOCIAL_PASSWORD,
       Permanent: true
     }).promise();
@@ -174,6 +174,9 @@ async ensureUserExists(email, name) {
 
 // Admin login to get tokens for social login users
 async adminLogin(username) {
+  // Normalize email to prevent case-sensitivity issues
+  const normalizedUsername = username.toLowerCase().trim();
+
   const admin = new AWS.CognitoIdentityServiceProvider({
     region: this.region,
     accessKeyId: process.env.COGNITO_ACCESS_KEY,
@@ -185,7 +188,7 @@ async adminLogin(username) {
     UserPoolId: this.poolId,
     ClientId: this.clientId,
     AuthParameters: {
-      USERNAME: username,
+      USERNAME: normalizedUsername,
       PASSWORD: SOCIAL_PASSWORD
     }
   };
