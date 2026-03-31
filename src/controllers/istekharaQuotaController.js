@@ -242,54 +242,86 @@ exports.listQuotas = async (req, res, next) => {
   }
 };
 
-// Get remaining quota balance
+/**
+ * Get remaining quota balance
+ * 
+ * How we are calculating:
+ * 1. Fetch all successful transactions (purchases and redemptions) for the user ordered by date.
+ * 2. Simulate a ledger by deducting redemptions sequentially from the oldest available purchases.
+ * 3. Sum the remaining balance only from purchases that have not yet expired.
+ * 
+ * Example Response:
+ * {
+ *   "remaining": 2,
+ *   "total_purchased": 4,
+ *   "total_used": 19,
+ *   "user_id": 601
+ * }
+ */
 exports.getRemainingQuota = async (req, res, next) => {
   try {
     const user = req.user;
-
-    // Calculate quota balance (ledger-based)
-    const quotaBalance = await IstekharaQuota.sum('quantity', {
+    
+    // Fetch all successful transactions for the user, ordered chronologically
+    const allRecords = await IstekharaQuota.findAll({
       where: {
-        user_id: user.id,
-        success: true,
-        expires_at: {
-          [Op.or]: [
-            { [Op.gte]: new Date() },
-            { [Op.is]: null }
-          ]
+        user_id: user.id, 
+        // user_id: 601, //hardcoded is for aliraza account testing
+        success: true
+      },
+      order: [['created_at', 'ASC']]
+    });
+
+    let totalUsedLifetime = 0;
+    const purchases = [];
+
+    // Simulate the ledger
+    for (const record of allRecords) {
+      if (record.quantity > 0) {
+        // Track each purchase's remaining capacity
+        purchases.push({
+          quantity: record.quantity,
+          remaining: record.quantity,
+          expires_at: record.expires_at
+        });
+      } else if (record.quantity < 0) {
+        // Negative quantity means redemption
+        const usedAmount = Math.abs(record.quantity);
+        totalUsedLifetime += usedAmount;
+
+        // Deduct this usage from the oldest available purchase
+        let amountToDeduct = usedAmount;
+        for (let i = 0; i < purchases.length && amountToDeduct > 0; i++) {
+          const p = purchases[i];
+          if (p.remaining > 0) {
+            const deduct = Math.min(p.remaining, amountToDeduct);
+            p.remaining -= deduct;
+            amountToDeduct -= deduct;
+          }
         }
       }
-    });
+    }
 
-    // Get total purchased (positive quantities)
-    const totalPurchased = await IstekharaQuota.sum('quantity', {
-      where: {
-        user_id: user.id,
-        success: true,
-        quantity: { [Op.gt]: 0 },
-        expires_at: {
-          [Op.or]: [
-            { [Op.gte]: new Date() },
-            { [Op.is]: null }
-          ]
-        }
-      }
-    });
+    // Calculate currently active metrics
+    let remaining = 0;
+    let totalPurchasedActive = 0;
+    const now = new Date();
 
-    // Get total used (negative quantities)
-    const totalUsed = await IstekharaQuota.sum('quantity', {
-      where: {
-        user_id: user.id,
-        success: true,
-        quantity: { [Op.lt]: 0 },
-        redeem: true
+    for (const p of purchases) {
+      // Check if the purchase is still active (unexpired)
+      if (!p.expires_at || p.expires_at >= now) {
+        remaining += p.remaining;
+        totalPurchasedActive += p.quantity;
       }
-    });
+    }
+
+    // Ensure remaining doesn't magically fall below 0 in edge cases
+    remaining = Math.max(0, remaining);
 
     res.json({
-      remaining: quotaBalance || 0,
-      total_purchased: totalPurchased || 0,
-      total_used: Math.abs(totalUsed || 0),
+      remaining: remaining,
+      total_purchased: totalPurchasedActive,
+      total_used: totalUsedLifetime,
       user_id: user.id
     });
   } catch (error) {

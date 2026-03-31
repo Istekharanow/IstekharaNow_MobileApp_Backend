@@ -78,6 +78,15 @@ const authenticate = async (req, res, next) => {
       const normalizedEmail = verified.email.toLowerCase().trim();
       const user = await User.findOne({ where: { email: normalizedEmail } });
       if (user) {
+        // Block soft-deleted users
+        if (user.soft_delete) {
+          return res.status(403).json({
+            message: 'Your account has been deleted. Please sign up again to recover it.',
+            result: {},
+            status: false,
+            status_code: 403
+          });
+        }
         req.user = {
           id: user.id,
           email: user.email,

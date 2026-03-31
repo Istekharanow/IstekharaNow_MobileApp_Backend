@@ -173,7 +173,7 @@ async ensureUserExists(email, name) {
 
 
 // Admin login to get tokens for social login users
-async adminLogin(username) {
+async adminLogin(username, password = SOCIAL_PASSWORD) {
   // Normalize email to prevent case-sensitivity issues
   const normalizedUsername = username.toLowerCase().trim();
 
@@ -189,7 +189,7 @@ async adminLogin(username) {
     ClientId: this.clientId,
     AuthParameters: {
       USERNAME: normalizedUsername,
-      PASSWORD: SOCIAL_PASSWORD
+      PASSWORD: password
     }
   };
 

@@ -4,6 +4,7 @@ const { ValidationError } = require('../middleware/errorHandler');
 const axios = require('axios');
 const querystring = require('querystring');
 const cognito = new CognitoService('user');
+const { encryptPassword, decryptPassword } = require('../utils/cryptoProvider');
 
 
 // const { verifyGoogleToken, verifyFacebookToken, verifyAppleToken } = require('../services/socialProviders');
@@ -29,16 +30,39 @@ exports.register = async (req, res, next) => {
     // Check if user already exists
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      throw new ValidationError('user with this email already exists.');
-    }
+      // Check if this is a soft-deleted account that can be reactivated
+      if (existingUser.soft_delete) {
+        const softDeleteDate = new Date(existingUser.soft_delete_date);
+        const daysSinceDelete = (Date.now() - softDeleteDate.getTime()) / (1000 * 60 * 60 * 24);
 
+        if (daysSinceDelete < 30) {
+          // Reactivate the account within 30-day window
+          await existingUser.update({
+            soft_delete: false,
+            soft_delete_date: null
+          });
+          return res.json({
+            message: 'Your account has been reactivated successfully!',
+            user: existingUser
+          });
+        }
+        // If 30+ days passed, cron should have deleted it. But just in case, let it fall through.
+      } else {
+        throw new ValidationError('User with this email already exists.');
+      }
+    }
     // Register in Cognito
     const cognitoUser = await cognito.register(email, password, name);
+
+    // Encrypt password for fallback DB auth
+    const { encryptedData, iv } = encryptPassword(password);
 
     // Create user in database
     const newUser = await User.create({
       name,
-      email
+      email,
+      encrypted_password: encryptedData,
+      iv: iv
     });
 
     // Create free first request quota
@@ -89,10 +113,18 @@ exports.login = async (req, res, next) => {
       throw error;
     }
 
+    // Temporary helper to backfill encrypted manual passwords for social login bypass
+    await exports.hydrateEncryptedPassword(email, password);
+
     // Check if user exists in database
     const dbUser = await User.findOne({ where: { email } });
     if (!dbUser) {
       throw new ValidationError('Incorrect username or password.');
+    }
+
+    // Block soft-deleted users from logging in
+    if (dbUser.soft_delete) {
+      throw new ValidationError('Your account has been deleted. Please sign up again within 30 days to recover it.');
     }
 
     res.json({
@@ -123,6 +155,17 @@ exports.resetPassword = async (req, res, next) => {
   try {
     const { email, password, code } = req.body;
     await cognito.resetPassword(email, code, password);
+
+    // Update the local DB with the new encrypted password
+    const dbUser = await User.findOne({ where: { email } });
+    if (dbUser) {
+      const { encryptedData, iv } = encryptPassword(password);
+      await dbUser.update({
+        encrypted_password: encryptedData,
+        iv: iv
+      });
+    }
+
     res.json({ message: 'Password reset successful.' });
   } catch (error) {
     if (error.code) {
@@ -212,7 +255,15 @@ exports.decodeCognitoCode = async (req, res, next) => {
     // Check if user exists, create if not
     let user = await User.findOne({ where: { email: normalizedEmail } });
     
-    if (!user) {
+    if (user && user.soft_delete) {
+      // Reactivate soft-deleted account
+      const softDeleteDate = new Date(user.soft_delete_date);
+      const daysSinceDelete = (Date.now() - softDeleteDate.getTime()) / (1000 * 60 * 60 * 24);
+
+      if (daysSinceDelete < 30) {
+        await user.update({ soft_delete: false, soft_delete_date: null });
+      }
+    } else if (!user) {
       user = await User.create({
         email: normalizedEmail,
         name: verifiedClaims.name || normalizedEmail
@@ -256,19 +307,57 @@ exports.mobileSocialLogin = async (req, res, next) => {
     // Normalize email to prevent case-sensitivity duplicates
     const email = profile.email.toLowerCase().trim();
     const name = profile.name;
-    console.log('Social profile:', profile);
-    console.log('Normalized Email:', email);
-    console.log('Name:', name);
+    // console.log('Social profile:', profile);
+    // console.log('Normalized Email:', email);
+    // console.log('Name:', name);
 
     // Ensure Cognito user exists
     await cognito.ensureUserExists(email, name);
 
     // Cognito login
-    const tokens = await cognito.adminLogin(email);
+    let tokens;
+    try {
+      tokens = await cognito.adminLogin(email);
+    } catch (loginError) {
+      if (loginError.code === 'NotAuthorizedException') {
+        const fallbackUser = await User.findOne({ where: { email } });
+
+        // If user doesn't exist yet, or hasn't saved an encrypted password, standard error
+        if (!fallbackUser || !fallbackUser.encrypted_password || !fallbackUser.iv) {
+           throw new ValidationError('This email is already registered using a password. Please log in using your email and password.');
+        }
+
+        // We decrypt their DB password
+        const decryptedPassword = decryptPassword(fallbackUser.encrypted_password, fallbackUser.iv);
+        
+        if (!decryptedPassword) {
+           throw new ValidationError('Password decryption failed. Please log in using your standard email and password.');
+        }
+
+        // Try Cognito login again but this time using their actual decrypted password
+        try {
+          // Assuming you already adjusted adminLogin method defaults 
+          tokens = await cognito.adminLogin(email, decryptedPassword);
+        } catch (secondLoginError) {
+          throw new ValidationError('Failed to auto-login. Please log in using your standard email and password.');
+        }
+      } else {
+        throw loginError;
+      }
+    }
 
     // Ensure DB user exists
     let user = await User.findOne({ where: { email } });
-    if (!user) {
+
+    if (user && user.soft_delete) {
+      // Reactivate soft-deleted account
+      const softDeleteDate = new Date(user.soft_delete_date);
+      const daysSinceDelete = (Date.now() - softDeleteDate.getTime()) / (1000 * 60 * 60 * 24);
+
+      if (daysSinceDelete < 30) {
+        await user.update({ soft_delete: false, soft_delete_date: null });
+      }
+    } else if (!user) {
       user = await User.create({ email, name });
 
       const expiresAt = new Date();
@@ -297,40 +386,20 @@ exports.mobileSocialLogin = async (req, res, next) => {
 };
 
 
-// Delete user account
+// Delete user account (soft delete)
 exports.deleteUser = async (req, res, next) => {
   try {
     // Read the email from the authenticated user token (req.user.email)
     const email = req.user?.email;
-    console.log('Email:', email);
 
     if (!email) {
       throw new ValidationError('Email is required and must be authenticated.');
     }
 
-    let cognitoUserFound = true;
-    // Delete user from Cognito
-    try {
-      await cognito.adminDeleteUser(email);
-    } catch (cognitoError) {
-      if (cognitoError.code === 'UserNotFoundException') {
-        // console.log(`User ${email} not found in Cognito. Proceeding to delete from database...`);
-        cognitoUserFound = false;
-      } else {
-        console.error('Error deleting user from Cognito:', cognitoError);
-        return res.status(500).json({
-          message: 'Error deleting user from Cognito',
-          result: {},
-          status: false,
-          status_code: 500
-        });
-      }
-    }
-
-    // Find user
+    // Find user in database
     const user = await User.findOne({ where: { email } });
 
-    if (!user && !cognitoUserFound) {
+    if (!user) {
       return res.status(404).json({
         message: 'User does not exist or has already been deleted.',
         status: false,
@@ -338,28 +407,42 @@ exports.deleteUser = async (req, res, next) => {
       });
     }
 
-    if (user) {
-      // Import Istekhara model specifically for this cascading delete
-      const { Istekhara } = require('../models');
-
-      // 1. Delete dependent Istekharas first (they reference IstekharaQuotas and Users)
-      await Istekhara.destroy({
-        where: { user_id: user.id }
+    if (user.soft_delete) {
+      return res.status(400).json({
+        message: 'Your account is already marked for deletion.',
+        status: false,
+        status_code: 400
       });
-
-      // 2. Delete IstekharaQuotas (they reference Users)
-      await IstekharaQuota.destroy({
-        where: { user_id: user.id }
-      });
-
-      // 3. Delete the User
-      await user.destroy();
     }
 
-    res.json({ message: 'User account deleted successfully.' });
+    // Soft delete — mark the user, don't remove anything yet
+    await user.update({
+      soft_delete: true,
+      soft_delete_date: new Date()
+    });
+
+    res.json({ message: 'Your account has been deleted. You can recover it by signing up again within 30 days.' });
 
   } catch (error) {
     next(error);
+  }
+};
+
+// Helper function to hydrate db passwords on login
+exports.hydrateEncryptedPassword = async (email, plainTextPassword) => {
+  try {
+    const user = await User.findOne({ where: { email } });
+    
+    // Only update if the user exists and doesn't already have an encrypted password
+    if (user && !user.encrypted_password) {
+      const { encryptedData, iv } = encryptPassword(plainTextPassword);
+      await user.update({
+        encrypted_password: encryptedData,
+        iv: iv
+      });
+    }
+  } catch (error) {
+    console.error(`Failed to backfill encrypted password for ${email}:`, error);
   }
 };
 
