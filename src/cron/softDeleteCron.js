@@ -15,8 +15,9 @@ function startSoftDeleteCron() {
     console.log('[CRON] Running soft-delete cleanup job...');
 
     try {
+      // 30 DAYS DELETE TIME-------------------------
       const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 60);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       // Find all users soft-deleted 30+ days ago
       const usersToDelete = await User.findAll({
@@ -27,6 +28,20 @@ function startSoftDeleteCron() {
           }
         }
       });
+
+      // 60 DAYS DELETE TIME-------------------------
+      // const sixtyDaysAgo = new Date();
+      //   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+      //   // Find all users soft-deleted 60+ days ago
+      //   const usersToDelete = await User.findAll({
+      //     where: {
+      //       soft_delete: true,
+      //       soft_delete_date: {
+      //         [Op.lte]: sixtyDaysAgo
+      //       }
+      //     }
+      //   });
 
       if (usersToDelete.length === 0) {
         console.log('[CRON] No expired soft-deleted users found.');
