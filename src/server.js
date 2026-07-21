@@ -7,7 +7,7 @@ const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const startSoftDeleteCron = require('./cron/softDeleteCron');
 
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = process.env.PORT || 8001;
 
 // Middleware
 app.use(cors({

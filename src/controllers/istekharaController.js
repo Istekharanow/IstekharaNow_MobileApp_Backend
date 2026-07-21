@@ -2,6 +2,7 @@ const { Istekhara, IstekharaQuota, User, Alim, Testimonial } = require('../model
 const { ValidationError, NotFoundError } = require('../middleware/errorHandler');
 const { sendEmail } = require('../services/email');
 const { getQuranData } = require('../utils/quran');
+const { calculateUserQuota } = require('../utils/quotaCalculator');
 const { Op } = require('sequelize');
 
 // List istekharas (filtered by user type)
@@ -131,21 +132,10 @@ exports.createIstekhara = async (req, res, next) => {
     const alimEmails = [process.env.ALIM_MAIL_ID];
     alims.forEach(alim => alimEmails.push(alim.email));
 
-    // Check quota remaining // Check quota balance (ledger-based)
-    const quotaBalance = await IstekharaQuota.sum('quantity', {
-      where: {
-        user_id: user.id,
-        success: true,
-        expires_at: {
-          [Op.or]: [
-            { [Op.gte]: new Date() },
-            { [Op.is]: null }
-          ]
-        }
-      }
-    });
+    // Check quota balance using unified calculator
+    const userQuota = await calculateUserQuota(user.id);
 
-    if (!quotaBalance || quotaBalance <= 0) {
+    if (!userQuota.is_unlimited && (!userQuota.remaining || userQuota.remaining <= 0)) {
       throw new ValidationError('Please purchase a pack to create a new request.');
     }
 

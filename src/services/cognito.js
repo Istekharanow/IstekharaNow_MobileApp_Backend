@@ -65,6 +65,17 @@ class CognitoService {
     return await this.cognitoIdentityServiceProvider.initiateAuth(params).promise();
   }
 
+  async refreshToken(refreshToken) {
+    const params = {
+      AuthFlow: 'REFRESH_TOKEN_AUTH',
+      ClientId: this.clientId,
+      AuthParameters: {
+        REFRESH_TOKEN: refreshToken
+      }
+    };
+    return await this.cognitoIdentityServiceProvider.initiateAuth(params).promise();
+  }
+
   async forgotPassword(email) {
     const params = {
       ClientId: this.clientId,

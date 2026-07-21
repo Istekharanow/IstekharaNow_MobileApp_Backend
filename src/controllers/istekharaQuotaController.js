@@ -1,6 +1,7 @@
 const { IstekharaQuota, User, Istekhara } = require('../models');
 const { ValidationError } = require('../middleware/errorHandler');
 const { sendEmail } = require('../services/email');
+const { calculateUserQuota } = require('../utils/quotaCalculator');
 const stripe = require('stripe')(process.env.STRIPE_API_KEY);
 const { Op } = require('sequelize');
 
@@ -261,69 +262,8 @@ exports.listQuotas = async (req, res, next) => {
 exports.getRemainingQuota = async (req, res, next) => {
   try {
     const user = req.user;
-    
-    // Fetch all successful transactions for the user, ordered chronologically
-    const allRecords = await IstekharaQuota.findAll({
-      where: {
-        user_id: user.id, 
-        // user_id: 601, //hardcoded is for aliraza account testing
-        success: true
-      },
-      order: [['created_at', 'ASC']]
-    });
-
-    let totalUsedLifetime = 0;
-    const purchases = [];
-
-    // Simulate the ledger
-    for (const record of allRecords) {
-      if (record.quantity > 0) {
-        // Track each purchase's remaining capacity
-        purchases.push({
-          quantity: record.quantity,
-          remaining: record.quantity,
-          expires_at: record.expires_at
-        });
-      } else if (record.quantity < 0) {
-        // Negative quantity means redemption
-        const usedAmount = Math.abs(record.quantity);
-        totalUsedLifetime += usedAmount;
-
-        // Deduct this usage from the oldest available purchase
-        let amountToDeduct = usedAmount;
-        for (let i = 0; i < purchases.length && amountToDeduct > 0; i++) {
-          const p = purchases[i];
-          if (p.remaining > 0) {
-            const deduct = Math.min(p.remaining, amountToDeduct);
-            p.remaining -= deduct;
-            amountToDeduct -= deduct;
-          }
-        }
-      }
-    }
-
-    // Calculate currently active metrics
-    let remaining = 0;
-    let totalPurchasedActive = 0;
-    const now = new Date();
-
-    for (const p of purchases) {
-      // Check if the purchase is still active (unexpired)
-      if (!p.expires_at || p.expires_at >= now) {
-        remaining += p.remaining;
-        totalPurchasedActive += p.quantity;
-      }
-    }
-
-    // Ensure remaining doesn't magically fall below 0 in edge cases
-    remaining = Math.max(0, remaining);
-
-    res.json({
-      remaining: remaining,
-      total_purchased: totalPurchasedActive,
-      total_used: totalUsedLifetime,
-      user_id: user.id
-    });
+    const quotaMetrics = await calculateUserQuota(user.id);
+    res.json(quotaMetrics);
   } catch (error) {
     next(error);
   }

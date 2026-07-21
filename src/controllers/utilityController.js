@@ -1,5 +1,6 @@
 const { User, Alim, IstekharaQuota, ContactForm } = require('../models');
 const { ValidationError } = require('../middleware/errorHandler');
+const CognitoService = require('../services/cognito');
 const { sendEmail } = require('../services/email');
 const stripe = require('stripe')(process.env.STRIPE_API_KEY);
 
@@ -101,19 +102,31 @@ exports.contactForm = async (req, res, next) => {
 // Renew authentication token
 exports.renewToken = async (req, res, next) => {
   try {
-    const { refresh_token, user_type = 'user' } = req.body;
+    const refreshTokenInput = req.body.refresh_token || req.body['refresh-token'];
+    const userTypeInput = req.body.user_type || 'user';
 
-    if (!refresh_token) {
+    if (!refreshTokenInput) {
       throw new ValidationError('Refresh token is required');
     }
 
-    // This would typically call Cognito to refresh the token
-    // For now, return a placeholder response
+    const validTypes = ['user', 'alim', 'admin'];
+    const selectedType = validTypes.includes(userTypeInput) ? userTypeInput : 'user';
+
+    const cognito = new CognitoService(selectedType);
+    const authResult = await cognito.refreshToken(refreshTokenInput);
+
     res.json({
-      message: 'Token renewal not yet implemented',
-      note: 'Implement Cognito token refresh using AWS SDK'
+      'id-token': authResult.AuthenticationResult.IdToken,
+      'access-token': authResult.AuthenticationResult.AccessToken,
+      'id_token': authResult.AuthenticationResult.IdToken,
+      'access_token': authResult.AuthenticationResult.AccessToken,
+      'expires_in': authResult.AuthenticationResult.ExpiresIn,
+      'token_type': authResult.AuthenticationResult.TokenType
     });
   } catch (error) {
+    if (error.code === 'NotAuthorizedException' || error.code === 'InvalidParameterException') {
+      return next(new ValidationError('Invalid or expired refresh token. Please log in again.'));
+    }
     next(error);
   }
 };

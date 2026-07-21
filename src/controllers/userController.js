@@ -98,7 +98,7 @@ exports.login = async (req, res, next) => {
   try {
     let { email, password } = req.body;
     email = email.toLowerCase().trim();
-
+    debugger;
     // Authenticate with Cognito
     let loggedInUser;
     try {
@@ -254,7 +254,7 @@ exports.decodeCognitoCode = async (req, res, next) => {
 
     // Check if user exists, create if not
     let user = await User.findOne({ where: { email: normalizedEmail } });
-    
+
     if (user && user.soft_delete) {
       // Reactivate soft-deleted account
       const softDeleteDate = new Date(user.soft_delete_date);
@@ -296,20 +296,18 @@ exports.decodeCognitoCode = async (req, res, next) => {
 // Social mobile login------------------------------------------------------------------
 exports.mobileSocialLogin = async (req, res, next) => {
   try {
-    const { provider, provider_token } = req.body;
+    const { provider } = req.body;
+    const providerToken = req.body.provider_token || req.body.token || req.body.access_token || req.body.id_token;
 
-    if (!provider || !provider_token) {
-      throw new ValidationError('provider and provider_token are required');
+    if (!provider || !providerToken) {
+      throw new ValidationError('provider and provider_token (or token/access_token) are required');
     }
-    
-    const profile = await verifySocialToken(provider, provider_token);
+
+    const profile = await verifySocialToken(provider, providerToken);
 
     // Normalize email to prevent case-sensitivity duplicates
     const email = profile.email.toLowerCase().trim();
     const name = profile.name;
-    // console.log('Social profile:', profile);
-    // console.log('Normalized Email:', email);
-    // console.log('Name:', name);
 
     // Ensure Cognito user exists
     await cognito.ensureUserExists(email, name);
@@ -324,19 +322,18 @@ exports.mobileSocialLogin = async (req, res, next) => {
 
         // If user doesn't exist yet, or hasn't saved an encrypted password, standard error
         if (!fallbackUser || !fallbackUser.encrypted_password || !fallbackUser.iv) {
-           throw new ValidationError('This email is already registered using a password. Please log in using your email and password.');
+          throw new ValidationError('This email is already registered using a password. Please log in using your email and password.');
         }
 
         // We decrypt their DB password
         const decryptedPassword = decryptPassword(fallbackUser.encrypted_password, fallbackUser.iv);
-        
+
         if (!decryptedPassword) {
-           throw new ValidationError('Password decryption failed. Please log in using your standard email and password.');
+          throw new ValidationError('Password decryption failed. Please log in using your standard email and password.');
         }
 
         // Try Cognito login again but this time using their actual decrypted password
         try {
-          // Assuming you already adjusted adminLogin method defaults 
           tokens = await cognito.adminLogin(email, decryptedPassword);
         } catch (secondLoginError) {
           throw new ValidationError('Failed to auto-login. Please log in using your standard email and password.');
@@ -373,11 +370,15 @@ exports.mobileSocialLogin = async (req, res, next) => {
       });
     }
 
-    //  Return Cognito tokens
+    // Return Cognito tokens in both conventions for compatibility
     res.json({
       id_token: tokens.IdToken,
       access_token: tokens.AccessToken,
-      refresh_token: tokens.RefreshToken
+      refresh_token: tokens.RefreshToken,
+      'id-token': tokens.IdToken,
+      'access-token': tokens.AccessToken,
+      'refresh-token': tokens.RefreshToken,
+      user
     });
 
   } catch (error) {
@@ -432,7 +433,7 @@ exports.deleteUser = async (req, res, next) => {
 exports.hydrateEncryptedPassword = async (email, plainTextPassword) => {
   try {
     const user = await User.findOne({ where: { email } });
-    
+
     // Only update if the user exists and doesn't already have an encrypted password
     if (user && !user.encrypted_password) {
       const { encryptedData, iv } = encryptPassword(plainTextPassword);
